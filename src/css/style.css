@@ -1,0 +1,32 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+canvas {
+  max-height: 500px;
+}
+
+.footer {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  display: block;
+}
+
+a.mgs_button:hover {
+  background-color: #34ff86;
+  color: #000;
+}
+
+a.mgs_button {
+  padding: 12px 14px;
+  background-color: #1bd96a;
+  color: #000;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 800;
+  font-style: normal;
+}
+
+.footer p {
+  color: #26292f;
+  text-align: center;
+  margin: 2px;
+}
