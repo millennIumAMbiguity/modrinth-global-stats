@@ -1,5 +1,6 @@
-let modChart = { chart: null };
-let modActivityChart = { chart: null };
+const modChart = { chart: null };
+const modActivityChart = { chart: null };
+const fabricDownloadChart = { chart: null };
 let versions = []; // You can filter the versions by adding them here, when empty it will fetch all versions
 let timestamp = 0;
 
@@ -100,6 +101,28 @@ async function fetchModActivityLast30Days(version) {
   }
 }
 
+async function fetchFabricVersions() {
+  const url = `https://api.modrinth.com/v2/project/P7dR8mSH/version`;
+
+  try {
+    const response = await fetch(url);
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    return 0;
+  }
+}
+
+function formatNumber(num) {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(num % 1000000 === 0 ? 0 : 1) + "M";
+  } else if (num >= 1000) {
+    return (num / 1000).toFixed(num % 1000 === 0 ? 0 : 1) + "K";
+  } else {
+    return num.toString();
+  }
+}
+
 function setChart(element, chartObj) {
   chartObj.chart = new Chart(element.getContext("2d"), {
     type: "doughnut",
@@ -123,7 +146,9 @@ function setChart(element, chartObj) {
         tooltip: {
           callbacks: {
             label: function (tooltipItem) {
-              return `Minecraft ${tooltipItem.label}: ${tooltipItem.raw} projects`;
+              return `Minecraft ${tooltipItem.label}: ${formatNumber(
+                tooltipItem.raw
+              )} projects`;
             },
           },
         },
@@ -164,41 +189,42 @@ function getDate30DaysAgo() {
   return (timestamp = date.getTime() / 1000);
 }
 
-function updateChartAndSort(chartObj, modCounts) {
-	const totalMods = modCounts.reduce((sum, item) => sum + item.count, 0);
-	const significantVersions = [];
-	const significantCounts = [];
-	let otherModsCount = 0;
-  
-	for (let item of modCounts) {
-	  const percentage = (item.count / totalMods) * 100;
-	  if (percentage >= 2) {
-		significantVersions.push(item.version);
-		significantCounts.push(item.count);
-	  } else {
-		otherModsCount += item.count;
-	  }
-	}
-  
-	if (otherModsCount > 0) {
-	  significantVersions.push("Others");
-	  significantCounts.push(otherModsCount);
-	}
-  
-	updateChart(chartObj, 
-	  significantVersions.map((v, i) => ({
-		version: v,
-		count: significantCounts[i],
-	  })),
-	  true
-	);
+function updateChartAndSort(chartObj, modCounts, groupLimit = 2) {
+  const totalMods = modCounts.reduce((sum, item) => sum + item.c, 0);
+  const significantVersions = [];
+  const significantCounts = [];
+  let otherModsCount = 0;
+
+  for (let item of modCounts) {
+    const percentage = (item.c / totalMods) * 100;
+    if (percentage >= groupLimit) {
+      significantVersions.push(item.v);
+      significantCounts.push(item.c);
+    } else {
+      otherModsCount += item.c;
+    }
+  }
+
+  if (otherModsCount > 0) {
+    significantVersions.push("Others");
+    significantCounts.push(otherModsCount);
+  }
+
+  updateChart(
+    chartObj,
+    significantVersions.map((v, i) => ({
+      v: v,
+      c: significantCounts[i],
+    })),
+    true
+  );
 }
 
 // Function to update the mod version chart
 function updateChart(chartObj, modCounts, withPercentages) {
   const c = chartObj.chart;
-  c.data.labels = modCounts.map((item) => item.version);
-  c.data.datasets[0].data = modCounts.map((item) => item.count);
+  c.data.labels = modCounts.map((item) => item.v);
+  c.data.datasets[0].data = modCounts.map((item) => item.c);
   c.data.datasets[0].backgroundColor = generateColors(modCounts.length);
   c.options.plugins.datalabels.formatter = (value, ctx) => {
     if (withPercentages) {
@@ -230,35 +256,35 @@ function generateColors(count) {
 }
 
 async function displayModCounts() {
-	const versions = await fetchGameVersions();
-	let modCounts = [];
-  
-	// Initialize mod version chart
-	setChart(document.getElementById("modChart"), modChart);
-  
-	const cashedCounts = getCookie("mod_counts");
-	if (cashedCounts) {
-	  modCounts = cashedCounts;
-	} else {
-	  const loading = [{ version: "loading%", count: "0" }];
-	  for (let i = 0; i < versions.length; i++) {
-		const version = versions[i];
-		const count = await fetchModCountForVersion(version);
-		modCounts.push({ version, count });
-  
-		if (i % 2 == 0) {
-		  loading[0].version =
-			"loading: " + Math.floor((i * 100) / versions.length) + "%";
-		  updateChart(modChart, loading);
-		}
-	  }
-  
-	  modCounts.sort((a, b) => b.count - a.count);
-	  setCookie("mod_counts", modCounts);
-	}
-  
-	updateChartAndSort(modChart, modCounts);
+  const versions = await fetchGameVersions();
+  let modCounts = [];
+
+  // Initialize mod version chart
+  setChart(document.getElementById("modChart"), modChart);
+
+  const cashedCounts = getCookie("mod_counts");
+  if (cashedCounts) {
+    modCounts = cashedCounts;
+  } else {
+    const loading = [{ v: "loading%", c: "0" }];
+    for (let i = 0; i < versions.length; i++) {
+      const v = versions[i];
+      const c = await fetchModCountForVersion(v);
+      modCounts.push({ v, c });
+
+      if (i % 2 == 0) {
+        loading[0].v =
+          "loading: " + Math.floor((i * 100) / versions.length) + "%";
+        updateChart(modChart, loading);
+      }
+    }
+
+    modCounts.sort((a, b) => b.c - a.c);
+    setCookie("mod_counts", modCounts);
   }
+
+  updateChartAndSort(modChart, modCounts);
+}
 
 // Function to display mod activity in the last 30 days
 async function displayModActivityLast30Days() {
@@ -272,26 +298,65 @@ async function displayModActivityLast30Days() {
   if (cashedCounts) {
     modCounts = cashedCounts;
   } else {
-    const loading = [{ version: "loading%", count: "0" }];
+    const loading = [{ v: "loading%", c: "0" }];
     for (let i = 0; i < versions.length; i++) {
-      const version = versions[i];
-      const count = await fetchModActivityLast30Days(version);
-      modCounts.push({ version, count });
+      const v = versions[i];
+      const c = await fetchModActivityLast30Days(v);
+      modCounts.push({ v, c });
 
       if (i % 2 == 0) {
-        loading[0].version =
+        loading[0].v =
           "loading: " + Math.floor((i * 100) / versions.length) + "%";
-		  updateChart(modActivityChart, loading);
+        updateChart(modActivityChart, loading);
       }
     }
 
-    modCounts.sort((a, b) => b.count - a.count);
+    modCounts.sort((a, b) => b.c - a.c);
     setCookie("new_mods", modCounts);
   }
 
   updateChartAndSort(modActivityChart, modCounts);
 }
 
+async function displayFabricApiDownlods() {
+  let versions = await fetchGameVersions();
+  // Filter versions to only include 1.14 and above because Fabric is only available for 1.14+
+  versions = versions.filter((item) => item >= "1.14");
+  let result = [];
+
+  setChart(document.getElementById("fabricDownloadChart"), fabricDownloadChart);
+
+  const cashedCounts = getCookie("fabric_downloads");
+  if (cashedCounts) {
+    result = cashedCounts;
+  } else {
+    const downloadsList = await fetchFabricVersions();
+
+    downloadsList.forEach((item) => {
+      item.game_versions.forEach((version) => {
+        if (versions.includes(version)) {
+          // Check if the version is already in the result
+          const existingVersion = result.find((v) => v.v === version);
+
+          if (existingVersion) {
+            // If it exists, accumulate the download count
+            existingVersion.c += item.downloads;
+          } else {
+            // If it doesn't exist, add a new entry
+            result.push({ v: version, c: item.downloads });
+          }
+        }
+      });
+    });
+
+    result.sort((a, b) => b.c - a.c);
+    setCookie("fabric_downloads", result);
+  }
+
+  updateChartAndSort(fabricDownloadChart, result, 1);
+}
+
 getDate30DaysAgo();
 displayModCounts();
 displayModActivityLast30Days();
+displayFabricApiDownlods();
