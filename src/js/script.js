@@ -1,4 +1,5 @@
-let modChart, modActivityChart;
+let modChart = { chart: null };
+let modActivityChart = { chart: null };
 let versions = []; // You can filter the versions by adding them here, when empty it will fetch all versions
 let timestamp = 0;
 
@@ -99,20 +100,8 @@ async function fetchModActivityLast30Days(version) {
   }
 }
 
-// Helper function to get the date 30 days ago in 'YYYY-MM-DD' format
-function getDate30DaysAgo() {
-  const date = new Date();
-  date.setDate(date.getDate() - 30);
-
-  return (timestamp = date.getTime() / 1000);
-}
-
-async function displayModCounts() {
-  const versions = await fetchGameVersions();
-  let modCounts = [];
-
-  // Initialize mod version chart
-  modChart = new Chart(document.getElementById("modChart").getContext("2d"), {
+function setChart(element, chartObj) {
+  chartObj.chart = new Chart(element.getContext("2d"), {
     type: "doughnut",
     data: {
       labels: [],
@@ -143,7 +132,7 @@ async function displayModCounts() {
           align: "end",
           offset: 10,
           formatter: (value, ctx) => {
-            const totalMods = modChart.data.datasets[0].data.reduce(
+            const totalMods = chartObj.chart.data.datasets[0].data.reduce(
               (a, b) => a + b,
               0
             );
@@ -166,75 +155,61 @@ async function displayModCounts() {
     },
     plugins: [ChartDataLabels],
   });
+}
 
-  const cashedCounts = getCookie("mod_counts");
-  if (cashedCounts) {
-    modCounts = cashedCounts;
-  } else {
-    const loading = [{ version: "loading%", count: "0" }];
-    for (let i = 0; i < versions.length; i++) {
-      const version = versions[i];
-      const count = await fetchModCountForVersion(version);
-      modCounts.push({ version, count });
+function getDate30DaysAgo() {
+  const date = new Date();
+  date.setDate(date.getDate() - 30);
 
-      if (i % 2 == 0) {
-        loading[0].version =
-          "loading: " + Math.floor((i * 100) / versions.length) + "%";
-        updateChart(loading);
-      }
-    }
+  return (timestamp = date.getTime() / 1000);
+}
 
-    modCounts.sort((a, b) => b.count - a.count);
-    setCookie("mod_counts", modCounts);
-  }
-
-  const totalMods = modCounts.reduce((sum, item) => sum + item.count, 0);
-  const significantVersions = [];
-  const significantCounts = [];
-  let otherModsCount = 0;
-
-  for (let item of modCounts) {
-    const percentage = (item.count / totalMods) * 100;
-    if (percentage >= 2) {
-      significantVersions.push(item.version);
-      significantCounts.push(item.count);
-    } else {
-      otherModsCount += item.count;
-    }
-  }
-
-  if (otherModsCount > 0) {
-    significantVersions.push("Others");
-    significantCounts.push(otherModsCount);
-  }
-
-  updateChart(
-    significantVersions.map((v, i) => ({
-      version: v,
-      count: significantCounts[i],
-    })),
-    true
-  );
+function updateChartAndSort(chartObj, modCounts) {
+	const totalMods = modCounts.reduce((sum, item) => sum + item.count, 0);
+	const significantVersions = [];
+	const significantCounts = [];
+	let otherModsCount = 0;
+  
+	for (let item of modCounts) {
+	  const percentage = (item.count / totalMods) * 100;
+	  if (percentage >= 2) {
+		significantVersions.push(item.version);
+		significantCounts.push(item.count);
+	  } else {
+		otherModsCount += item.count;
+	  }
+	}
+  
+	if (otherModsCount > 0) {
+	  significantVersions.push("Others");
+	  significantCounts.push(otherModsCount);
+	}
+  
+	updateChart(chartObj, 
+	  significantVersions.map((v, i) => ({
+		version: v,
+		count: significantCounts[i],
+	  })),
+	  true
+	);
 }
 
 // Function to update the mod version chart
-function updateChart(modCounts, withPercentages) {
-  modChart.data.labels = modCounts.map((item) => item.version);
-  modChart.data.datasets[0].data = modCounts.map((item) => item.count);
-  modChart.data.datasets[0].backgroundColor = generateColors(modCounts.length);
-  modChart.options.plugins.datalabels.formatter = (value, ctx) => {
+function updateChart(chartObj, modCounts, withPercentages) {
+  const c = chartObj.chart;
+  c.data.labels = modCounts.map((item) => item.version);
+  c.data.datasets[0].data = modCounts.map((item) => item.count);
+  c.data.datasets[0].backgroundColor = generateColors(modCounts.length);
+  c.options.plugins.datalabels.formatter = (value, ctx) => {
     if (withPercentages) {
-      const totalMods = modChart.data.datasets[0].data.reduce(
-        (a, b) => a + b,
-        0
-      );
+      const totalMods = c.data.datasets[0].data.reduce((a, b) => a + b, 0);
       let percentage = ((value / totalMods) * 100).toFixed(2) + "%";
       return ctx.chart.data.labels[ctx.dataIndex] + ": " + percentage;
     } else {
       return ctx.chart.data.labels[ctx.dataIndex];
     }
   };
-  modChart.update();
+  c.update();
 }
 
 // Helper function to generate random colors for the chart
@@ -254,69 +229,44 @@ function generateColors(count) {
   return generatedColors;
 }
 
+async function displayModCounts() {
+	const versions = await fetchGameVersions();
+	let modCounts = [];
+  
+	// Initialize mod version chart
+	setChart(document.getElementById("modChart"), modChart);
+  
+	const cashedCounts = getCookie("mod_counts");
+	if (cashedCounts) {
+	  modCounts = cashedCounts;
+	} else {
+	  const loading = [{ version: "loading%", count: "0" }];
+	  for (let i = 0; i < versions.length; i++) {
+		const version = versions[i];
+		const count = await fetchModCountForVersion(version);
+		modCounts.push({ version, count });
+  
+		if (i % 2 == 0) {
+		  loading[0].version =
+			"loading: " + Math.floor((i * 100) / versions.length) + "%";
+		  updateChart(modChart, loading);
+		}
+	  }
+  
+	  modCounts.sort((a, b) => b.count - a.count);
+	  setCookie("mod_counts", modCounts);
+	}
+  
+	updateChartAndSort(modChart, modCounts);
+  }
+
 // Function to display mod activity in the last 30 days
 async function displayModActivityLast30Days() {
   const versions = await fetchGameVersions();
   let modCounts = [];
 
   // Initialize the second chart for mod activity
-  modActivityChart = new Chart(
-    document.getElementById("modActivityChart").getContext("2d"),
-    {
-      type: "doughnut",
-      data: {
-        labels: [],
-        datasets: [
-          {
-            label: "Number of Projects",
-            data: [],
-            backgroundColor: [],
-            borderColor: "#16181c",
-            borderWidth: 1,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        layout: { padding: 40 },
-        plugins: {
-          legend: { position: "bottom", display: false },
-          tooltip: {
-            callbacks: {
-              label: function (tooltipItem) {
-                return `Minecraft ${tooltipItem.label}: ${tooltipItem.raw} projects`;
-              },
-            },
-          },
-          datalabels: {
-            anchor: "end",
-            align: "end",
-            offset: 10,
-            formatter: (value, ctx) => {
-              const totalMods = modActivityChart.data.datasets[0].data.reduce(
-                (a, b) => a + b,
-                0
-              );
-              const percentage = ((value / totalMods) * 100).toFixed(2) + "%";
-              if (percentage < 1) return "";
-              return ctx.chart.data.labels[ctx.dataIndex] + ": " + percentage;
-            },
-            color: "#b0bac5",
-            backgroundColor: "#26292f",
-            borderColor: "#16181c",
-            borderWidth: 1,
-            borderRadius: 3,
-            padding: { top: 6, bottom: 6, left: 10, right: 10 },
-            font: {
-              family: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI"',
-              size: 12,
-            },
-          },
-        },
-      },
-      plugins: [ChartDataLabels],
-    }
-  );
+  setChart(document.getElementById("modActivityChart"), modActivityChart);
 
   const cashedCounts = getCookie("new_mods");
   if (cashedCounts) {
@@ -331,7 +281,7 @@ async function displayModActivityLast30Days() {
       if (i % 2 == 0) {
         loading[0].version =
           "loading: " + Math.floor((i * 100) / versions.length) + "%";
-        updateChart30Days(loading);
+		  updateChart(modActivityChart, loading);
       }
     }
 
@@ -339,54 +289,7 @@ async function displayModActivityLast30Days() {
     setCookie("new_mods", modCounts);
   }
 
-  const totalMods = modCounts.reduce((sum, item) => sum + item.count, 0);
-  const significantVersions = [];
-  const significantCounts = [];
-  let otherModsCount = 0;
-
-  for (let item of modCounts) {
-    const percentage = (item.count / totalMods) * 100;
-    if (percentage >= 2) {
-      significantVersions.push(item.version);
-      significantCounts.push(item.count);
-    } else {
-      otherModsCount += item.count;
-    }
-  }
-
-  if (otherModsCount > 0) {
-    significantVersions.push("Others");
-    significantCounts.push(otherModsCount);
-  }
-
-  updateChart30Days(
-    significantVersions.map((v, i) => ({
-      version: v,
-      count: significantCounts[i],
-    })),
-    true
-  );
-}
-
-function updateChart30Days(modCounts, withPercentages) {
-  modActivityChart.data.labels = modCounts.map((item) => item.version);
-  modActivityChart.data.datasets[0].data = modCounts.map((item) => item.count);
-  modActivityChart.data.datasets[0].backgroundColor = generateColors(
-    modCounts.length
-  );
-  modActivityChart.options.plugins.datalabels.formatter = (value, ctx) => {
-    if (withPercentages) {
-      const totalMods = modActivityChart.data.datasets[0].data.reduce(
-        (a, b) => a + b,
-        0
-      );
-      let percentage = ((value / totalMods) * 100).toFixed(2) + "%";
-      return ctx.chart.data.labels[ctx.dataIndex] + ": " + percentage;
-    } else {
-      return ctx.chart.data.labels[ctx.dataIndex];
-    }
-  };
-  modActivityChart.update();
+  updateChartAndSort(modActivityChart, modCounts);
 }
 
 getDate30DaysAgo();
