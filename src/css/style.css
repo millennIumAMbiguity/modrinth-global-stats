@@ -30,3 +30,16 @@ a.mgs_button {
   text-align: center;
   margin: 2px;
 }
+
+card {
+  min-width: 640px;
+  display: block;
+  margin: 24px;
+}
+
+.card_master {
+  padding-bottom: 48px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
